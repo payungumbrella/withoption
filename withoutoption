@@ -1,0 +1,101 @@
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
+#include <ESP32Servo.h>
+#include <UniversalTelegramBot.h>
+
+// Wi-Fi credentials
+const char* ssid = "Dnomaid";
+const char* password = "1sampai12";
+
+// Telegram Bot credentials
+const String botToken = "8008458842:AAHG_kTcqbM2m-3gIaPgyQZYt3lwyPgPz4Q";
+const String chatID = "1915393903";
+
+// Servo
+Servo myServo;
+int servoPin = 18;
+
+// IR Sensor
+const int irPin = 23; // Pin untuk sensor IR
+
+// Telegram bot instance
+WiFiClientSecure client;
+UniversalTelegramBot bot(botToken, client);
+
+void setup() {
+  Serial.begin(115200);
+  connectToWiFi();
+
+  // Setup untuk servo dan sensor IR
+  myServo.attach(servoPin);
+  pinMode(irPin, INPUT);
+
+  // Sambung ke Wi-Fi
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+  }
+  Serial.println("Connected to WiFi!");
+}
+
+void loop() {
+  // Bacaan dari IR sensor
+  if (digitalRead(irPin) == HIGH) {
+    sendTelegramMessage("Ada bungkusan sampai!");  // Hantar mesej ke Telegram jika halangan dikesan
+    delay(10000); // Tunggu 10 saat sebelum baca semula
+  }
+}
+
+void connectToWiFi() {
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("Connected to WiFi!");
+}
+
+void sendTelegramMessage(String message) {
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+
+    // Convert the URL to a String
+        String url=
+    String("https://api.telegram.org/bot") + botToken + "/sendMessage?chat_id=" + String(chatID) + "&text=" + message;
+    
+    http.begin(url);
+    int httpResponseCode = http.GET();
+    
+    if (httpResponseCode > 0) {
+      String response = http.getString();
+      Serial.println("Telegram message sent successfully!");
+    } else {
+      Serial.print("Error on sending Telegram message: ");
+      Serial.println(httpResponseCode);
+    }
+    http.end();
+  } else {
+    Serial.println("WiFi Disconnected");
+  } 
+
+  // Kawalan servo melalui Serial Monitor
+  if (Serial.available()) {
+    int angle = Serial.parseInt();  // Baca sudut dari input Serial
+    myServo.write(90);  // Gerakkan servo ke sudut tertentu
+  }
+
+  delay(20); // Cegah beban pemprosesan
+}
+
+// Fungsi untuk hantar notifikasi ke Telegram apabila bungkusan dikesan
+void sendTelegramNotification() {
+  bot.sendMessage(chatID, "Ada bungkusan masuk!", "");
+}
+
+// Fungsi untuk gerakkan servo ke sudut 90 darjah
+void moveServo() {
+  myServo.write(90);  // Gerakkan servo ke sudut 90 darjah
+  bot.sendMessage(chatID, "Bungkusan telah dimasukkan.", "");
+}
